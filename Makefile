@@ -1,9 +1,22 @@
 
+GOOS=linux
 build: fmt
-	go build main.go
+	GOOS=$(GOOS) go build main.go
 
 fmt:
 	go fmt .
+
+function-name=hello-lambda-apm
+update-function-code: main.zip
+	aws lambda update-function-code \
+	 --function-name $(function-name) \
+	 --zip-file fileb://./$<
+
+main.zip: main
+	rm -rf $@
+	zip $@ $^
+
+main: build
 
 NEW_RELIC_LINKED_ACCOUNT_NAME=hello-lambda-apm
 install:

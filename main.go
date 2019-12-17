@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-
+	"github.com/labstack/gommon/log"
 	newrelic "github.com/newrelic/go-agent"
 	"github.com/newrelic/go-agent/_integrations/nrlambda"
+	insights "github.com/newrelic/go-insights/client"
+	"math/rand"
+	"os"
 )
 
 func handler(ctx context.Context) {
-	// The nrlambda handler instrumentation will add the transaction to the
-	// context.  Access it using newrelic.FromContext to add additional
-	// instrumentation.
 	if txn := newrelic.FromContext(ctx); nil != txn {
 		_ = txn.AddAttribute("userLevel", "gold")
 		_ = txn.Application().RecordCustomEvent("MyEvent", map[string]interface{}{
@@ -22,17 +22,35 @@ func handler(ctx context.Context) {
 }
 
 func main() {
-	// nrlambda.NewConfig should be used in place of newrelic.NewConfig
-	// since it sets Lambda specific configuration settings including
-	// Config.ServerlessMode.Enabled.
+	//lambda.Start(handler)
 	cfg := nrlambda.NewConfig()
-	// Here is the opportunity to change configuration settings before the
-	// application is created.
 	app, err := newrelic.NewApplication(cfg)
 	if nil != err {
 		fmt.Println("error creating app (invalid config):", err)
 	}
-	// nrlambda.Start should be used in place of lambda.Start.
-	// nrlambda.StartHandler should be used in place of lambda.StartHandler.
-	nrlambda.Start(handler, app)
+	insightInsertKey := os.Getenv("NEW_RELIC_INSIGHTS_INSERT_KEY")
+	client := insights.NewInsertClient(insightInsertKey, os.Getenv("NEW_RELIC_ACCOUNT_ID"))
+	h := NRHandler{client: client}
+	nrlambda.Start(h.Xx, app)
+}
+
+type TestType struct {
+	EventType    string `json:"eventType"`
+	AwesomeScore int    `json:"AwesomeScore"`
+}
+
+type NRHandler struct {
+	client *insights.InsertClient
+}
+
+func (h *NRHandler) Xx(ctx context.Context) {
+	score := rand.Intn(100)
+	testData := TestType{
+		EventType:    "HelloEvent",
+		AwesomeScore: score,
+	}
+
+	if postErr := h.client.PostEvent(testData); postErr != nil {
+		log.Errorf("Error: %v\n", postErr)
+	}
 }
